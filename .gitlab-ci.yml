@@ -1,0 +1,225 @@
+stages:
+  #  - test-e2e  # Test detox de l'application
+  - init-badges
+  - lint
+  - test
+  - build
+  - sign
+  - deploy # Génération de l'application
+cache: # Mise en place du cache pour les fichiers node_modules entre 2 jobs
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - ./app/node_modules/
+    - ./api/node_modules/
+
+# init badge by installing anybadge
+.install-anybadge:
+  before_script:
+    - pip install anybadge # install anybadge
+
+#test-e2e: # Test detox de l'application (crée le terminal virtuel et passe les tests detox)
+#  stage: test-e2e
+#  script:
+#    - avdmanager create avd -n Pixel3A -d 23 -k "system-images;android-28;google_apis_playstore;x86_64" --force
+#    - detox build -c android
+#    - detox test -c android --headless
+
+init-badges:
+  stage: init-badges
+  extends: .install-anybadge
+  script:
+    - mkdir -p public
+    # init the badges in case of futur failure
+    - ~/.local/bin/anybadge -l tests-backend --value FAILED --file public/tests-backend.svg FAILED=red
+    - ~/.local/bin/anybadge -l apk-release --value FAILED --file public/apk-release.svg FAILED=red
+    - ~/.local/bin/anybadge -l ios-release --value FAILED --file public/ios-release.svg FAILED=red
+  artifacts:
+    when: always
+    paths:
+      - public
+
+eslint-app:
+  stage: lint
+  extends: .install-anybadge
+  script:
+    - mkdir -p public
+    # Lint app
+    - cd app
+    - npm ci
+    - npm run lint 2> ../public/lint-app.log
+    - cd ..
+    - export VAL="PASSED"
+    - (($(cat lint-app.log | grep error | wc -l) != 0)) && export VAL="FAILED" # change value if failed
+    - ~/.local/bin/anybadge -l lint-app --value $VAL --file public/lint-app.svg PASSED=green FAILED=red # add badge
+    - (($(cat lint-app.log | grep error | wc -l) == 0)) # crash the pipeline if failed
+  artifacts:
+    when: always
+    paths:
+      - public
+
+eslint-api:
+  stage: lint
+  extends: .install-anybadge
+  script:
+    - mkdir -p public
+    # Lint API
+    - cd api
+    - npm ci
+    - npm run lint 2> ../public/lint-api.log
+    - cd ..
+    - export VAL="PASSED"
+    - (($(cat lint-api.log | grep error | wc -l) != 0)) && export VAL="FAILED" # change value if failed
+    - ~/.local/bin/anybadge -l lint-api --value $VAL --file public/lint-api.svg PASSED=green # add badge
+    - (($(cat lint-api.log | grep error | wc -l) == 0)) # crash the pipeline if failed
+  artifacts:
+    when: always
+    paths:
+      - public
+
+tests-backend:
+  stage: test
+  extends: .install-anybadge
+  script:
+    - mkdir -p public
+    - cd api
+    - npm ci
+    - npm run test 2> ../public/tests-backend.log # run the tests
+    - cd ..
+    - export VAL="PASSED"
+    - (($(cat tests-backend.log | grep failed | wc -l) != 0)) && export VAL="FAILED" # change value if failed
+    - ~/.local/bin/anybadge --overwrite -l tests-backend --value $VAL --file public/tests-backend.svg PASSED=green FAILED=red # add badge
+    - (($(cat tests-backend.log | grep failed | wc -l) == 0)) # make the pipeline crash if a test failed
+  artifacts:
+    when: always
+    paths:
+      - public
+
+.install-android-sdk:
+  before_script:
+    - !reference [.install-anybadge, before_script]
+    # Install Android SDK
+    - cd app
+    - export SDK_INSTALL_PATH=/scratch/$USER/sdk
+    - mkdir -p $SDK_INSTALL_PATH
+    - ./install_local_sdk.sh
+    - source $SDK_INSTALL_PATH/.androidrc
+    - cd ..
+    - export PATH="$PATH:$(npm config get prefix)/bin"
+    - npm install -g npm
+    # Ensimag runners: fix npm
+    - CACHE_DIRS_BASE=/scratch/$USER
+    # Set cache dirs
+    - NPM_CACHE_DIR=$CACHE_DIRS_BASE/.npm
+    - mkdir -p $NPM_CACHE_DIR
+    - npm config set -g cache="$NPM_CACHE_DIR" prefix="$NPM_CACHE_DIR"
+
+build-apk:
+  stage: build
+  extends: .install-android-sdk
+  script:
+    - mkdir -p public
+    - cd app
+    - git config --global url."https://".insteadOf ssh://
+    - npm ci
+    - cd android
+    # in case the build failed the badge FAILED will be created before
+    - ./gradlew assembleRelease --no-daemon
+    - ~/.local/bin/anybadge --overwrite -l apk-release --value SUCCESS --file ../../apk-release.svg FAILED=red SUCCESS=green
+    - cp ./app/build/outputs/apk/release/app-release.apk ../../public/app-release.apk
+    - cp -f ../../apk-release.svg ../../public/apk-release.svg
+  artifacts:
+    when: always
+    paths:
+      - public
+
+build-ios:
+  stage: build
+  allow_failure: true
+  tags:
+    - osx
+  script:
+    - mkdir -p public
+    - PUBLIC=${PWD}/public
+    - cd app
+    - source /Users/gitlabrunneruser/.zshrc
+    - APPIOS=$(find . -d -name "ios" | grep -v node_modules)
+    - npm install
+    - ls
+    - cd ios
+    - NAME='twonotes'
+    - pod install
+    - xcodebuild build -workspace ${NAME}.xcworkspace -scheme ${NAME} -configuration "Release" -arch arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO PRODUCT_BUNDLE_IDENTIFIER=fr.ensimag.demoios -derivedDataPath $PWD/build 2> warn_err.log 1> feedback.log || echo "Build failed"
+    - cp feedback.log ${PUBLIC}
+    - cp warn_err.log ${PUBLIC}
+    - mkdir -p Payload
+    - cp -rf build/Build/Products/Release-iphoneos/${NAME}.app Payload/
+    - zip -r ${NAME}.ipa Payload
+    - rm -rf Payload
+    - mv ${NAME}.ipa ${PUBLIC}
+  artifacts:
+    when: always
+    paths:
+      - public
+
+sign-ios:
+  stage: sign
+  extends: .install-anybadge
+  allow_failure: true
+  script:
+    - mkdir -p public
+    - ls ${PUBLIC}
+    - PUBLIC=${PWD}/public
+    - NAME='twonotes'
+    - mkdir -p secret
+    - SECRET=${PWD}/secret
+    - cat "$IOS_DEV_PEM" > ${SECRET}/ios_development.pem
+    - cat "$IOS_DEV_KEY" > ${SECRET}/ios-dev.key
+    - zsign -k ${SECRET}/ios-dev.key -m ${PWD}/app/demoIOS.mobileprovision -c ${SECRET}/ios_development.pem -b fr.ensimag.demoios -o ${PUBLIC}/${NAME}_signed.ipa ${PUBLIC}/${NAME}.ipa
+    - ~/.local/bin/anybadge --overwrite -l ios-release --value SUCCESS --file ios-release.svg FAILED=red SUCCESS=green
+    - cp -f ios-release.svg public/ios-release.svg
+  dependencies:
+    - "build-ios"
+  artifacts:
+    when: always
+    paths:
+      - public
+
+#badges:
+#  stage: badge-build
+#  extends: .init-badge
+#  script:
+# check if the apk has been build
+#    - if [ -f app-release.apk ]; then export VAL="SUCCESS"; else export VAL="FAILED"; echo "BUILD FAILED" > app-release.apk; fi;
+#    - ~/.local/bin/anybadge -l apk-release --value $VAL --file apk-release.svg FAILED=red SUCCESS=green
+# check if the ios has been signed
+#    - if [ -f public/twonotes_signed.ipa ]; then export VAL="SUCCESS"; else export VAL="FAILED"; echo "BUILD OF SIGNING FAILED" > public/twonotes_signed.ipa; fi;
+#    - ~/.local/bin/anybadge -l ios-release --value $VAL --file ios-release.svg FAILED=red SUCCESS=green
+#    - cp public/twonotes_signed.ipa twonotes_signed.ipa
+#  artifacts:
+#    when: always
+#    paths:
+#      - apk-release.svg
+#      - app-release.apk
+#      - ios-release.svg
+#      - twonotes_signed.ipa
+
+# Job to deploy to heroku
+production:
+  stage: deploy
+  image: ruby:latest # use ruby image
+  tags:
+    - docker
+  script:
+    - cd api
+    - apt-get update -qy
+    - apt-get install -y ruby-dev
+    - gem install dpl
+    - dpl --provider=heroku --app=$HEROKU_APP_NAME --api-key=$HEROKU_API_KEY # deploy to heroku
+
+pages:
+  stage: deploy
+  script:
+    - mkdir -p public
+  artifacts:
+    paths:
+      - public
