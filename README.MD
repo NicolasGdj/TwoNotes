@@ -1,5 +1,7 @@
 # TwoNotes
 
+Réalisé dans le cadre d'un projet à l'ENSIMAG en collaboration avec Hugo Cartigny & Tanguy Paymal.
+
 ## Objectifs
 
 TwoNotes est une application mobile pour ios et android de notes partagées.
@@ -54,11 +56,6 @@ En effet, si il a crée la note il sera Créateur mais ne pourra pas devenir Col
 
 ![](assets/diagramme_données.jpg)
 
-## Documentation API
-
-La documentation est accessible sous le lien suivant : https://two-notes.herokuapp.com/doc/
-Elle est gérérée automatiquement avec swagger.
-
 ## Choix techniques réalisés
 
 ### Front : APP
@@ -107,21 +104,3 @@ Les droits sont très simple, il y a juste un boolean avec le droit d'écriture 
 https://www.youtube.com/watch?v=Y7Bk75WKeDg
 
 Une fonctionnalité a été ajouté après la vidéo pour voir si nous sommes on non en **readonly** sur une note. Cette fonctionnalité est présente sous la forme d'un texte présent sur le haut de la note.
-
-## Organisation de l'équipe
-
-Tout le monde a travaillé à un moment donné sur le backend et le frontend. Nous avons utilisé le board de gitlab et les issues pour se répartir les tâches et faire un seul sprint SCRUM. Chaque issue avait un poids et était attribué à une ou plusieurs personnes.
-
-L'API REST à principalement été développé par Nicolas. Il a construit la base de donnée SQLite pour les notes, les utilisateurs et collaborateurs. Il s'est aussi occupé de faire certaines pages sur l'ajout de note et de collaborateur avec la gestion de l'affichage en fonction de l'authentification. Il s'est également occupé de la gestion iOS à savoir faire le build ios et la signature ios sur la pipeline ci-cd, etc..
-
-Hugo a amélioré une librairie de dessin qu'il a fork sur son Github : [github.com/BlueskyFR/rn-perfect-sketch-canvas](https://github.com/BlueskyFR/rn-perfect-sketch-canvas). Dans un premier temps, afin de prendre en compte une gestion du dessin par le réseau, la gestion de l'historique (undo/redo) a été réécrite pour indexer les traits par IDs (+ style : color, width...), en stockant seulement les deltas (différences entre 2 états du canvas) ; des callbacks ont été ajoutés pour avoir des informations lorsqu'une action était réalisé (`onDraw(bool)`, `onDelete(bool)`) : le serveur peut se servir du booléen dans `onDraw(bool)` pour savoir quand un trait est fini et ainsi le stocker en base de données; ensuite, les fonctions d'importations et d'exportation de traits (save, load) ont été mises à jour.
-Une méthode `delete(id)` a également été ajoutée pour permettre de supprimer un trait en spécifiant son ID.
-Enfin, une option **readonly** a été ajoutée pour permettre d'interdire des nouveaux traits sur le canvas afin qu'il puisse être utilisé en tant qu'"invité" par exemple.
-Ces modifications ont également amélioré les performances et ont réduit l'espace mémoire consommé par la librairie.
-L'ensemble de ces modifications a été une vraie expérience de reprise d'un code existant tout en améliorant, facilitée par l'utlisation des types Typescript par l'auteur original, qui ont été mis à jour par la même occasion.
-Les modifications que nous avons pu faire ayant ajouté de nombreuses fonctionnalités au projet initial, nous avons l'intention de les proposer à l'auteur original sous la forme d'une **pull request**.
-Les modifications effectuées peuvent être consultées facilement en consultant l'historique des commits, résumant bien ce qui a été fait.
-
-Hugo a aussi réalisé le build APK de la pipeline CI-CD. Il s'est enfin occupé de faire la communication des sockets côté front.
-
-Tanguy a développé des pages (register, login, Home) pour l'application. Il s'est occupé d'ajouter à la pipeline les badges, le linting, les tests backend et le déploiement sur Heroku de l'api. Il a aussi ajouté à la base de donnée les traits et leur gestion avec les sockets en backend.
