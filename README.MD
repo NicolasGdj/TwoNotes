@@ -8,11 +8,6 @@ TwoNotes est une application mobile pour ios et android de notes partagées.
 Elle permet de créer des notes et ajouter des colaborateurs en lecture seule ou en lecture et écriture.
 Les colaborateurs de la note ont chacun la possibilité de **undo** et **redo** leur traits et peuvent aussi supprimer le contenu d'une note avec **reset**. **Save** permet de sauvegarder la note actuelle en SVG (toujours en développement).
 
-## Obtenir l'application
-
-- Un click sur les badges release-app et release-ios permettent de directement télécharger l'application pour l'installer ensuite sur un téléphone. Pour IOS il faut que l'appareil utilisé soit dans la liste des appareils autorisés lors de la signature.
-- Les fichiers sont également disponibles dans pages.
-
 ## Cas d'usages
 
 ### Cas d'usage global
@@ -101,6 +96,6 @@ Les droits sont très simple, il y a juste un boolean avec le droit d'écriture 
 
 ## Démonstration vidéo
 
-https://www.youtube.com/watch?v=Y7Bk75WKeDg
+[Vidéo](https://www.youtube.com/watch?v=Y7Bk75WKeDg)
 
 Une fonctionnalité a été ajouté après la vidéo pour voir si nous sommes on non en **readonly** sur une note. Cette fonctionnalité est présente sous la forme d'un texte présent sur le haut de la note.
